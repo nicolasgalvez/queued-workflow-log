@@ -19,12 +19,37 @@ queue submission server-side.
 
 import json
 import os
-import time
 
 import folder_paths
 from server import PromptServer
 
 QUEUED_DIR = os.path.join(folder_paths.get_user_directory(), "queued")
+
+
+def _free_path(directory, stem, suffix=".json"):
+    """Return a path in `directory` that does not exist yet.
+
+    `stem.json`, else `stem_1.json`, `stem_2.json`, ... — the convention every
+    file manager uses. A name is never unique on its own: a queue number restarts
+    at 0 on every ComfyUI restart, and a prompt_id repeats if a job is resubmitted.
+    Writing to a taken name would destroy the earlier run's workflow, which is the
+    one thing this pack exists to preserve.
+
+    Uses O_CREAT|O_EXCL so two submissions racing on the same name cannot both win
+    the same file; the loser simply takes the next index.
+    """
+    candidate = stem
+    i = 0
+    while True:
+        path = os.path.join(directory, f"{candidate}{suffix}")
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            i += 1
+            candidate = f"{stem}_{i}"
+            continue
+        os.close(fd)
+        return path
 
 
 def _save_queued_workflow(json_data):
@@ -46,14 +71,11 @@ def _save_queued_workflow(json_data):
                     number = -PromptServer.instance.number
                 else:
                     number = PromptServer.instance.number
-                # A queue number is NOT unique: it restarts at 0 on every ComfyUI
-                # restart, so a bare "<number>.json" silently overwrites an earlier
-                # run's workflow. Stamp the fallback so a collision cannot destroy
-                # history. Submissions that carry a prompt_id keep naming by it.
-                name = f"{number:g}-{time.strftime('%Y%m%d-%H%M%S')}"
+                name = f"{number:g}"
 
             os.makedirs(QUEUED_DIR, exist_ok=True)
-            with open(os.path.join(QUEUED_DIR, f"{name}.json"), "w", encoding="utf-8") as f:
+            path = _free_path(QUEUED_DIR, name)
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(workflow, f)
     except Exception:
         pass  # never interfere with /prompt

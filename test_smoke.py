@@ -15,6 +15,9 @@ import tempfile
 import types
 
 
+SAMPLE_ID = "6f9619ff-8b86-4d01-b42d-00cf4fc964ff"
+
+
 def main():
     tmp_dir = tempfile.mkdtemp()
 
@@ -59,23 +62,30 @@ def main():
     print("OK:", expected_path)
 
     # Fallback: no prompt_id in the body (a frontend submission that omits it)
-    # still logs. The name is the job number STAMPED with a timestamp: a bare
-    # number is not unique (it restarts at 0 on every ComfyUI restart), so an
-    # unstamped name silently overwrites an earlier run's workflow.
+    # still logs, named by the job number.
     handler({"number": 42, "extra_data": {"extra_pnginfo": {"workflow": {"nodes": [1]}}}})
-    matches = [f for f in os.listdir(os.path.join(tmp_dir, "queued")) if f.startswith("42-")]
-    assert len(matches) == 1, f"expected one 42-<stamp>.json, got {matches}"
-    assert re.fullmatch(r"42-\d{8}-\d{6}\.json", matches[0]), f"bad name {matches[0]}"
-    with open(os.path.join(tmp_dir, "queued", matches[0])) as f:
+    expected = os.path.join(tmp_dir, "queued", "42.json")
+    assert os.path.exists(expected), f"expected {expected} to exist"
+    with open(expected) as f:
         assert json.load(f) == {"nodes": [1]}
-    print("OK:", os.path.join(tmp_dir, "queued", matches[0]))
+    print("OK:", expected)
 
-    # A second numbered submission must NOT destroy the first.
-    time.sleep(1.1)
+    # A name collision must NOT destroy the existing file. Suffix like any normal
+    # system: 42.json, then 42_1.json, then 42_2.json.
     handler({"number": 42, "extra_data": {"extra_pnginfo": {"workflow": {"nodes": [2]}}}})
-    matches = sorted(f for f in os.listdir(os.path.join(tmp_dir, "queued")) if f.startswith("42-"))
-    assert len(matches) == 2, f"collision destroyed history: {matches}"
-    print("OK: no collision —", matches)
+    handler({"number": 42, "extra_data": {"extra_pnginfo": {"workflow": {"nodes": [3]}}}})
+    got = sorted(f for f in os.listdir(os.path.join(tmp_dir, "queued")) if f.startswith("42"))
+    assert got == ["42.json", "42_1.json", "42_2.json"], f"bad collision names: {got}"
+    for name, expect in (("42.json", [1]), ("42_1.json", [2]), ("42_2.json", [3])):
+        with open(os.path.join(tmp_dir, "queued", name)) as f:
+            assert json.load(f) == {"nodes": expect}, f"{name} holds the wrong workflow"
+    print("OK: collisions suffixed —", got)
+
+    # The prompt_id path collides too (a resubmitted job id) and must suffix, not clobber.
+    handler({"prompt_id": SAMPLE_ID, "extra_data": {"extra_pnginfo": {"workflow": {"nodes": [9]}}}})
+    assert os.path.exists(os.path.join(tmp_dir, "queued", f"{SAMPLE_ID}_1.json")), \
+        "a repeated prompt_id must suffix, not overwrite"
+    print("OK: repeated prompt_id suffixed")
 
 
 if __name__ == "__main__":
