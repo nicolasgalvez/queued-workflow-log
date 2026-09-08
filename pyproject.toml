@@ -1,0 +1,14 @@
+[project]
+name = "queued-workflow-log"
+description = "Writes each queued workflow to <user dir>/queued/<prompt_id>.json. Headless; adds no nodes."
+version = "1.0.0"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+classifiers = ["Operating System :: OS Independent"]
+
+[project.urls]
+Repository = "https://github.com/nicolasgalvez/queued-workflow-log"
+
+[tool.comfy]
+PublisherId = "nicolasgalvez"
+DisplayName = "Queued Workflow Log"
