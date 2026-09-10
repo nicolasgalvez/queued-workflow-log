@@ -8,19 +8,14 @@ the whole configuration. Nothing has to be added to a workflow for it to be capt
 
 ## Filenames
 
-`<prompt_id>.json` when the `POST /prompt` body carries a `prompt_id` — ComfyUI's own frontend
-sends one, so the filename matches the Job ID shown in the UI. Submissions without one (a bare
-API post) fall back to `<job number>.json`.
+`<datetime>-<hash>.json`, always — millisecond-resolution local time plus a short random
+suffix, e.g. `20260909-212733-481-d3f07a.json`. The suffix keeps two same-millisecond
+submissions distinct. Never the queue number: it restarts at 0 on every ComfyUI restart,
+so `1.json, 2.json…` collide and say nothing about which run they came from.
 
-**A taken name is never overwritten.** If the file exists, the next free index is used:
-
-    42.json      42_1.json      42_2.json ...
-
-This matters because neither name is unique on its own. The queue number restarts at 0 on every
-ComfyUI restart, and a `prompt_id` repeats whenever a job is resubmitted — so writing to a taken
-name would destroy the earlier run's workflow, which is the one thing this pack exists to
-preserve. The file is claimed with `O_CREAT|O_EXCL`, so two submissions racing on the same name
-cannot both win it; the loser takes the next index.
+The file is created with `open(..., "x")`, so an existing log is never truncated. A name
+collision raises `FileExistsError`; ComfyUI core catches on_prompt handler errors, logs the
+traceback, and the queue proceeds.
 
 ## Install
 
