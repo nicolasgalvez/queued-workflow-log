@@ -80,7 +80,7 @@ def _missing_workflow(body):
     return None
 
 
-def _workflow_required(body, reason):
+def _refusal_response(body, reason):
     extra_data = body.get("extra_data")
     error = {
         "type": "workflow_required",
@@ -115,7 +115,7 @@ async def _require_workflow(request, handler):
         "[queued-workflow-log] Rejected POST %s (client_id=%s): %s",
         request.path, body.get("client_id"), reason,
     )
-    return _workflow_required(body, reason)
+    return _refusal_response(body, reason)
 
 
 def _save_queued_workflow(json_data):

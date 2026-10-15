@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import tempfile
 import types
@@ -83,10 +84,7 @@ def add_core_routes(server):
     (as main.py does). post_prompt reads the body the way core does."""
 
     async def post_prompt(request):
-        try:
-            json_data = await request.json()
-        except ValueError:
-            return web.json_response({"core": "malformed"}, status=400)
+        json_data = await request.json()  # core does not catch: malformed -> 500
         json_data = server.trigger_on_prompt(json_data)
         server.queued.append(json_data)
         return web.json_response({"prompt_id": "p", "number": len(server.queued)})
@@ -139,7 +137,6 @@ async def http_checks(server, queued_dir, log):
             err = data["error"]
             assert err["type"] == "workflow_required", f"wrong error type: {err}"
             assert data["node_errors"] == {}, f"node_errors not empty: {data}"
-            assert FIELD in err["message"] or FIELD in err["details"], f"no field in message: {err}"
             assert FIELD in err["details"], f"details do not name {FIELD}: {err['details']}"
             assert '"extra_pnginfo": {"workflow"' in err["details"], f"details show no body shape: {err['details']}"
             info = err["extra_info"]
@@ -173,19 +170,20 @@ async def http_checks(server, queued_dir, log):
         resp = await client.post("/other", json={"prompt": PROMPT})
         assert resp.status == 200 and await resp.json() == {"other": {"prompt": PROMPT}}, "POST /other changed"
         resp = await client.post("/prompt", data=b"{not json", headers={"Content-Type": "application/json"})
-        assert await resp.json() == {"core": "malformed"}, "malformed body did not reach core's handling"
+        assert resp.status == 500, f"malformed body did not reach core's handling: {resp.status} {await resp.text()}"
 
 
-def main():
-    tmp_dir = tempfile.mkdtemp()
+def main(tmp_dir):
     server = load_pack(tmp_dir)
     add_core_routes(server)
     queued_dir = os.path.join(tmp_dir, "queued")
 
     log = Captured()
     logging.getLogger().addHandler(log)
-    asyncio.run(http_checks(server, queued_dir, log))
-    logging.getLogger().removeHandler(log)
+    try:
+        asyncio.run(http_checks(server, queued_dir, log))
+    finally:
+        logging.getLogger().removeHandler(log)
 
     # Same body, twice, as fast as the loop can go — two same-millisecond
     # submissions must still produce two distinct stamped files.
@@ -202,4 +200,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    tmp = tempfile.mkdtemp()
+    try:
+        main(tmp)
+    finally:
+        shutil.rmtree(tmp)

@@ -7,8 +7,9 @@ Every queued job must carry that workflow. A job submitted without one is refuse
 queues (see [Jobs without a workflow](#jobs-without-a-workflow)), so every run that happens has
 a record you can reopen.
 
-Headless: no nodes, no UI, no settings, no dependencies. Installing it and restarting ComfyUI is
-the whole configuration. Nothing has to be added to a workflow for it to be captured.
+Headless: no nodes, no UI, no settings, no dependencies beyond ComfyUI's own. Installing it and
+restarting ComfyUI is the whole configuration. Nothing has to be added to a workflow for it to be
+captured.
 
 ## Filenames
 
