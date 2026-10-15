@@ -1,6 +1,6 @@
 [project]
 name = "queued-workflow-log"
-description = "Writes each queued workflow to <user dir>/queued/. Never overwrites; suffixes _1, _2 on collision. Headless; adds no nodes."
+description = "Writes each queued workflow to <user dir>/queued/<datetime>-<hash>.json and refuses jobs queued without one. Never overwrites. Headless; adds no nodes."
 version = "1.0.0"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
